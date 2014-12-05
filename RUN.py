@@ -756,9 +756,6 @@ if __name__ == "__main__":
     raxml_executable = args.raxml_single[0]
     raxml_pthreads_executable = args.raxml_pthreads[0]
 
-    print raxml_executable
-    print raxml_pthreads_executable
-
     if len(sys.argv) > 1:
         raxml_executable = sys.argv[1]
         raxml_pthreads_executable = sys.argv[2]
