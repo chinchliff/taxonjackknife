@@ -21,9 +21,6 @@ n_tips_per_tree = 10 #1000 # currently 1000
 n_reps_taxon_jackknife = "10" #"200" # "200"
 n_reps_bootstrap = "10" #"100" # "100"
 
-raxml_executable = ''
-raxml_pthreads_executable = ''
-
 # simple simulation parameters
 birth_rate = 1.0
 death_rate = birth_rate / 10
@@ -755,10 +752,6 @@ if __name__ == "__main__":
 
     raxml_executable = args.raxml_single[0]
     raxml_pthreads_executable = args.raxml_pthreads[0]
-
-    if len(sys.argv) > 1:
-        raxml_executable = sys.argv[1]
-        raxml_pthreads_executable = sys.argv[2]
     
     for d in [temp_dir, results_dir]:
         if not os.path.exists(d):
