@@ -1,0 +1,17 @@
+repeat 100 times:
+    1. randomly generate a tree
+    2. simulate data on the tree
+    3. calculate support for the original tree based on the data
+       -> store these values
+   
+    repeat 100 times:
+        4. randomize the tree
+        5. calculate support for the random tree based on the data
+            -> store these values, grouped by whether or not the randomized branch in question was present in the original tree
+
+present:
+1. distribution of values from original trees
+2. distribution of values from original branches from random trees VS random branches from original trees 
+
+
+plot: branch *depth* by support value, for original branches in original trees, for taxon jackknife ica, bootstrap ica, bayes ica. 
