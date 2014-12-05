@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import newick3, phylo3, math, os, random, shutil, subprocess, sys, time
+import argparse, newick3, phylo3, math, os, random, shutil, subprocess, sys, time
 import numpy as np
 from dendropy import treesim
 
