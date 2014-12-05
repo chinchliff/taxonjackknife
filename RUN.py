@@ -17,9 +17,9 @@ TEST_DIR = results_dir + "/TEST"
 score_file_column_labels = ["j_freq","j_ica","b_freq","b_ica","length","depth","in_true_tree"]
 
 n_random_trees = 5 # currently 5
-n_tips_per_tree = 10 #1000 # currently 1000
-n_reps_taxon_jackknife = "10" #"200" # "200"
-n_reps_bootstrap = "10" #"100" # "100"
+n_tips_per_tree = 1000 # currently 1000
+n_reps_taxon_jackknife = "200" # "200"
+n_reps_bootstrap = "100" # "100"
 
 # simple simulation parameters
 birth_rate = 1.0
@@ -27,7 +27,7 @@ death_rate = birth_rate / 10
 
 expected_tree_depth = math.log(n_tips_per_tree) / (birth_rate - death_rate)
 
-n_threads = "30"
+n_threads = "26"
 n_threads_bootstrap = "9"
 max_bs_branches_to_process = 10000 / n_random_trees # test max 10,000 non-existent branches
 
@@ -800,9 +800,9 @@ if __name__ == "__main__":
 ### using beta subsampling
 
     # A    
-#    init_model(equal_rates_dir, subsampling_function=subsample_beta)
-#    for i in range(1, n_random_trees+1):
-#       run_single_tree(equal_rates_dir, simulate_equal_rates, get_random_tree, i, subsampling_function=subsample_beta)
+    init_model(equal_rates_dir, subsampling_function=subsample_beta)
+    for i in range(1, n_random_trees+1):
+       run_single_tree(equal_rates_dir, simulate_equal_rates, get_random_tree, i, subsampling_function=subsample_beta)
 
 #    # B
 #    init_model(random_rates_dir, subsampling_function=subsample_beta)
@@ -828,8 +828,8 @@ if __name__ == "__main__":
 #                        branch_lengths_function=assign_branch_lengths_from_tips, subsampling_function=subsample_beta)
 
     # test
-    init_model(TEST_DIR, subsampling_function=subsample_beta)
-    for i in range(1, 20):
-        run_single_tree(TEST_DIR, simulate_random_rates, get_balanced_tree, i, \
-                        branch_lengths_function=assign_branch_lengths_from_tips, \
-                        subsampling_function=subsample_beta)
+#    init_model(TEST_DIR, subsampling_function=subsample_beta)
+#    for i in range(1, 20):
+#        run_single_tree(TEST_DIR, simulate_random_rates, get_balanced_tree, i, \
+#                        branch_lengths_function=assign_branch_lengths_from_tips, \
+#                        subsampling_function=subsample_beta)
