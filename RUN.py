@@ -4,8 +4,8 @@ import newick3, phylo3, math, os, random, shutil, subprocess, sys, time
 import numpy as np
 from dendropy import treesim
 
-results_dir = os.path.expanduser("~/Dropbox/Projects_current/Jackknife_test/data_products")
-temp_dir = os.path.expanduser("~/Desktop/temp")
+results_dir = os.path.expanduser("~/taxonjackknife/data_products")
+temp_dir = os.path.expanduser("~/temp")
 
 equal_rates_dir = results_dir + "/equal_rates_model"
 random_rates_dir = results_dir + "/random_rates_model"
@@ -30,7 +30,8 @@ death_rate = birth_rate / 10
 
 expected_tree_depth = math.log(n_tips_per_tree) / (birth_rate - death_rate)
 
-n_threads = "20"
+n_threads = "30"
+n_threads_bootstrap = "9"
 max_bs_branches_to_process = 10000 / n_random_trees # test max 10,000 non-existent branches
 
 _j = 1
@@ -85,13 +86,6 @@ def get_pectinate_tree(branch_lengths_function):
     
     mean_br_length = expected_tree_depth / (n_tips_per_tree - 1)
     return branch_lengths_function(tree, mean_br_length)
-
-def get_random_tree(branch_lengths_function):
-
-    # note: the branch lengths function is unused in this tree generation method
-
-    simt = treesim.birth_death(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
-    return newick3.parse(simt.as_newick_string()).to_string()
 
 def assign_branch_lengths_from_tips(tree, mean_br_length):
 
@@ -181,6 +175,13 @@ def assign_branch_lengths_from_root(tree, mean_br_length):
                 c.length = tree_depth - d
         
     return newick3.to_string(tree)
+
+def get_random_tree(branch_lengths_function):
+
+    # note: the branch lengths function is unused in this tree generation method
+
+    simt = treesim.birth_death(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
+    return simt.as_newick_string()
 
 # for the equal rates model (simplest case)
 def simulate_equal_rates(tree_label, tree_function, branch_lengths_function):
@@ -376,10 +377,12 @@ def read_phylip(infile):
 
     return aln
 
-def subsample_beta(path_to_target_alignment, path_to_target_partsfile):
+def subsample_beta(path_to_target_alignment, path_to_target_partfile):
     """beta"""
-    subprocess.call('subsample_alignment_beta.py ' + path_to_target_alignment + ' ' \
-        + path_to_target_partsfile, shell='True')
+    cmd = 'subsample_alignment_beta.py '
+    cmd += path_to_target_alignment 
+    cmd += ' partfile=' + path_to_target_partfile if path_to_target_partfile is not None else ''
+    subprocess.call(cmd, shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
 
 def run_single_tree(base_dir, simulation_function, tree_function, tree_number, branch_lengths_function=None, subsampling_function=None):
@@ -405,12 +408,12 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
     os.mkdir(working_tree_dir)
     os.chdir(working_tree_dir)
 
-    # run the tree and alignment simulation, get the results
+    # run the tree and alignment simulation, get the results    
     simulation_results = simulation_function(tree_label, tree_function, branch_lengths_function)
     tree_file_name = simulation_results[0]
     alignment_file_name = working_tree_dir + "/" + simulation_results[1]
     partitions_file_name = working_tree_dir + "/" + simulation_results[2] if len(simulation_results) > 2 else None
-       
+    
     # subsample the alignment if necessary
     if subsampling_function is not None:
         alignment_file_name = subsampling_function(alignment_file_name, partitions_file_name)
@@ -434,7 +437,7 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
     print("\ntime for taxon jackknife: %.2f seconds" % jackknife_time)
     with open(all_times_file_name,"a") as timefile:
         timefile.write("%s,%.2f," % (tree_number, jackknife_time))
-
+    
     # get the node scores from the taxon jackknife
     node_scores = {}
     with open("node_scores.csv","r") as node_scores_file:
@@ -465,7 +468,7 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
         "-x", "123",
         "-p", "123",
         "-m", "GTRCAT",
-        "-T", n_threads]
+        "-T", n_threads_bootstrap]
     
     if partitions_file_name is not None:
         subsample_args += ["-q", partitions_file_name]
@@ -784,8 +787,45 @@ if __name__ == "__main__":
 #                        branch_lengths_function=assign_branch_lengths_from_tips)
 
     # test
+#    init_model(TEST_DIR, subsample_beta)
+#    for i in range(1, 20):
+#        run_single_tree(TEST_DIR, simulate_random_rates, get_balanced_tree, i, \
+#                        branch_lengths_function=assign_branch_lengths_from_tips, \
+#                        subsampling_function=subsample_beta)
+
+### using beta subsampling
+
+    # A    
+#    init_model(equal_rates_dir, subsampling_function=subsample_beta)
+#    for i in range(1, n_random_trees+1):
+#       run_single_tree(equal_rates_dir, simulate_equal_rates, get_random_tree, i, subsampling_function=subsample_beta)
+
+#    # B
+#    init_model(random_rates_dir, subsampling_function=subsample_beta)
+#    for i in range(1, n_random_trees+1):
+#        run_single_tree(random_rates_dir, simulate_random_rates, get_random_tree, i, subsampling_function=subsample_beta)
+
+    # C
+#    init_model(pectinate_random_dir, subsampling_function=subsample_beta)
+#    for i in range(1, n_random_trees+1):
+#        run_single_tree(pectinate_random_dir, simulate_random_rates, get_pectinate_tree, i, \
+#                        branch_lengths_function=assign_branch_lengths_from_root, subsampling_function=subsample_beta)
+
+    # D
+#    init_model(balanced_random_dir, subsampling_function=subsample_beta)
+#    for i in range(3, n_random_trees+1):
+#        run_single_tree(balanced_random_dir, simulate_random_rates, get_balanced_tree, i, \
+#                        branch_lengths_function=assign_branch_lengths_from_root, subsampling_function=subsample_beta)
+
+    # E
+#    init_model(balanced_random_short_tips_dir, subsampling_function=subsample_beta)
+#    for i in range(1, n_random_trees+1):
+#        run_single_tree(balanced_random_short_tips_dir, simulate_random_rates, get_balanced_tree, i, \
+#                        branch_lengths_function=assign_branch_lengths_from_tips, subsampling_function=subsample_beta)
+
+    # test
     init_model(TEST_DIR, subsampling_function=subsample_beta)
-    for i in range(1, n_random_trees+1):
+    for i in range(1, 20):
         run_single_tree(TEST_DIR, simulate_random_rates, get_balanced_tree, i, \
                         branch_lengths_function=assign_branch_lengths_from_tips, \
                         subsampling_function=subsample_beta)
