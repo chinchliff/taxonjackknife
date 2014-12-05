@@ -16,9 +16,6 @@ TEST_DIR = results_dir + "/TEST"
 
 score_file_column_labels = ["j_freq","j_ica","b_freq","b_ica","length","depth","in_true_tree"]
 
-raxml_executable = "raxmlHPC-AVX" # raxmlHPC-SSE3
-raxml_pthreads_executable = "raxmlHPC-PTHREADS-AVX" # raxmlHPC-PTHREADS-SSE3
-
 n_random_trees = 5 # currently 5
 n_tips_per_tree = 10 #1000 # currently 1000
 n_reps_taxon_jackknife = "10" #"200" # "200"
@@ -744,6 +741,17 @@ def init_model(base_dir, subsampling_function=None):
         times_file.write("tree,jackknife_time,bootstrap_time\n")
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="taxon jackknife simulations")
+    
+    parser.add_argument("-s", "--raxml-single", nargs=1, required=True, help="The name of the raxmlHPC single thread executable.")
+
+    parser.add_argument("-p", "--raxml-pthreads", nargs=1, required=True, help="The name of the raxmlHPC PTHREADS executable.")
+
+    args = parser.parse_args()
+
+    raxml_executable = args.raxml_single[0]
+    raxml_pthreads_executable = args.ramlx_pthreads[0]
 
     if len(sys.argv) > 1:
         raxml_executable = sys.argv[1]
