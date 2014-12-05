@@ -754,7 +754,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     raxml_executable = args.raxml_single[0]
-    raxml_pthreads_executable = args.ramlx_pthreads[0]
+    raxml_pthreads_executable = args.raxml_pthreads[0]
 
     if len(sys.argv) > 1:
         raxml_executable = sys.argv[1]
