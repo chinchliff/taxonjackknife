@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.6
 
 import argparse, newick3, phylo3, math, os, random, shutil, subprocess, sys, time
 import numpy as np
 from dendropy import treesim
 
 results_dir = os.path.expanduser("~/taxonjackknife/data_products")
-temp_dir = os.path.expanduser("~/temp")
 
 equal_rates_dir = results_dir + "/equal_rates_model"
 random_rates_dir = results_dir + "/random_rates_model"
@@ -27,8 +26,6 @@ death_rate = birth_rate / 10
 
 expected_tree_depth = math.log(n_tips_per_tree) / (birth_rate - death_rate)
 
-n_threads = "26"
-n_threads_bootstrap = "9"
 max_bs_branches_to_process = 10000 / n_random_trees # test max 10,000 non-existent branches
 
 _j = 1
@@ -407,7 +404,7 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
 
     # run the tree and alignment simulation, get the results    
     simulation_results = simulation_function(tree_label, tree_function, branch_lengths_function)
-    tree_file_name = simulation_results[0]
+    tree_file_name = working_tree_dir + "/" + simulation_results[0]
     alignment_file_name = working_tree_dir + "/" + simulation_results[1]
     partitions_file_name = working_tree_dir + "/" + simulation_results[2] if len(simulation_results) > 2 else None
     
@@ -416,12 +413,13 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
         alignment_file_name = subsampling_function(alignment_file_name, partitions_file_name)
 
     # calculate support for the original tree based on the data, support values will be stored in node_scores.csv
-    subsample_args = ["subsample_edge_quartets.py",
+    subsample_args = ["python3.4", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
         "-t", tree_file_name,
         "-n", alignment_file_name,
         "-#", n_reps_taxon_jackknife,
         "-T", n_threads,
         "-e", temp_dir,
+        "-o", working_tree_dir,
         "-X", raxml_executable]
 
     if partitions_file_name is not None:
@@ -431,12 +429,18 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
     subprocess.call(subsample_args)
     jackknife_time = time.time() - start
 
+    print("using: " + temp_dir + " for temp files")
+
+    shutil.rmtree(temp_dir)
+    os.mkdir(temp_dir)
+
     print("\ntime for taxon jackknife: %.2f seconds" % jackknife_time)
     with open(all_times_file_name,"a") as timefile:
         timefile.write("%s,%.2f," % (tree_number, jackknife_time))
     
     # get the node scores from the taxon jackknife
     node_scores = {}
+    print(os.path.abspath("."))
     with open("node_scores.csv","r") as node_scores_file:
         first_line = True
         for line in node_scores_file:
@@ -639,19 +643,14 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
 
     print("Found %s bootstrap quartets not in the original tree" % len(bootstrap_quartets))
 
-    # get ready to process the bad branch quartets
-    missing_topos_dir = temp_dir + "/" + tree_label + "_bootstrap_quartets_missing_from_true_tree"
-    if os.path.exists(missing_topos_dir):
-        shutil.rmtree(missing_topos_dir)
-    os.mkdir(missing_topos_dir)
-    os.chdir(missing_topos_dir)
-
     # set the sampling interval so we only process max_bs_branches_to_process, evenly distributed across the input set
     sample_freq = len(bootstrap_quartets)/float(max_bs_branches_to_process)
     max_br = min(len(bootstrap_quartets),max_bs_branches_to_process)
     cur_br = 1
-        
-    for p, q in enumerate(bootstrap_quartets): # for p in range(x)
+
+    os.chdir(temp_dir)
+
+    for p, q in enumerate(bootstrap_quartets):
 
         # skip branches that don't fall within our sample based on max_bs_branches_to_process
         if not p % sample_freq < 1:
@@ -659,8 +658,8 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
 
         print("on bootstrap quartet %s out of %s" % (cur_br, max_br))
         bad_branch_label = str(p) + "b"
+
         os.mkdir(bad_branch_label)
-        os.chdir(bad_branch_label)
 
         cur_br += 1
             
@@ -679,12 +678,12 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
             topo_file.write(newick)
 
         # calculate support for the bootstrap-inferred FALSE branch, support values will be stored in node_scores.csv
-        subsample_args = ["subsample_edge_quartets.py",
+        subsample_args = ["python3.4", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
             "-t", bad_branch_label+".tre",
             "-n", alignment_file_name,
             "-#", n_reps_taxon_jackknife,
             "-T", n_threads,
-            "-e", temp_dir,
+            "-e", temp_dir + "/" + bad_branch_label,
             "-p", "1", # specify a stop node number that we only want to process the first (i.e. the root) node
             "-X", raxml_executable]
         subprocess.call(subsample_args)     
@@ -706,8 +705,8 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
         node_scores[bad_branch_label]["length"] = "NA"
         node_scores[bad_branch_label]["depth"] = "NA"
 
-        os.chdir(missing_topos_dir)
-        
+        shutil.rmtree(temp_dir + "/" + bad_branch_label)
+
     os.chdir(working_tree_dir)
 
     # write scores to file and prepare for next iteration
@@ -751,10 +750,28 @@ if __name__ == "__main__":
 
     parser.add_argument("-p", "--raxml-pthreads", nargs=1, required=True, help="The name of the raxmlHPC PTHREADS executable.")
 
+    parser.add_argument("-t", "--temp-dir", nargs=1, required=True, help="A DEDICATED temp directory where temp files are stored. All files in this directory will be periodically WIPED.") 
+
+    parser.add_argument("-j", "--number-threads-jackknife", nargs=1, type=int, required=True, help="The number of threads to use for the taxon jackknife. Speed scales close to linearly here.")
+
+    parser.add_argument("-b", "--number-threads-bootstrap", nargs=1, type=int, required=True, help="The number of threads to use for the raxml bootstrapping. Scaling is heavily machine-dependent.")
+
+    parser.add_argument("-r", "--run-type", nargs=1, required=True, help="The type of run. These are indicted by letters A-E. See script for more info.")
+
+    parser.add_argument("-i", "--initialize-run", action="store_true", help="If set, an attempt will be made to initialize the run folder.")
+
+    parser.add_argument("-d", "--start-tree-id", nargs=1, type=int, required=True, help="The number of the tree to start with. Used when resuming partially completed runs.")
+
     args = parser.parse_args()
 
     raxml_executable = args.raxml_single[0]
     raxml_pthreads_executable = args.raxml_pthreads[0]
+    temp_dir = args.temp_dir[0] 
+    n_threads = str(args.number_threads_jackknife[0])
+    n_threads_bootstrap = str(args.number_threads_bootstrap[0])
+    run_type = args.run_type[0].upper()
+    start_tree_id = args.start_tree_id[0]
+    initialize = args.initialize_run
     
     for d in [temp_dir, results_dir]:
         if not os.path.exists(d):
@@ -762,74 +779,46 @@ if __name__ == "__main__":
 
     sys.setrecursionlimit(1500)
 
-    # A    
-#    init_model(equal_rates_dir)
-#    for i in range(1, n_random_trees+1):
-#       run_single_tree(equal_rates_dir, simulate_equal_rates, get_random_tree, i)
+    if run_type == "A":
+        d = equal_rates_dir         # working directory
+        s = simulate_equal_rates    # nucleotide simulation function
+        t = get_random_tree         # tree generator function
+        b = None                    # branch length generator function
 
-#    # B
-#    init_model(random_rates_dir)
-#    for i in range(1, n_random_trees+1):
-#        run_single_tree(random_rates_dir, simulate_random_rates, get_random_tree, i)
+    if run_type == "B":
+        d = random_rates_dir
+        s = simulate_random_rates
+        t = get_random_tree
+        b = None
 
-    # C
-#    init_model(pectinate_random_dir)
-#    for i in range(1, n_random_trees+1):
-#        run_single_tree(pectinate_random_dir, simulate_random_rates, get_pectinate_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_root)
+    if run_type == "C":
+        d = pectinate_random_dir
+        s = simulate_random_rates
+        t = get_pectinate_tree
+        b = assign_branch_lengths_from_root
 
-    # D
-#    init_model(balanced_random_dir)
-#    for i in range(3, n_random_trees+1):
-#        run_single_tree(balanced_random_dir, simulate_random_rates, get_balanced_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_root)
+    if run_type == "D":
+        d = balanced_random_dir
+        s = simulate_random_rates
+        t = get_balanced_tree
+        b = assign_branch_lengths_from_root
 
-    # E
-#    init_model(balanced_random_short_tips_dir)
-#    for i in range(1, n_random_trees+1):
-#        run_single_tree(balanced_random_short_tips_dir, simulate_random_rates, get_balanced_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_tips)
+    if run_type == "E":
+        d = balanced_random_short_tips_dir
+        s = simulate_random_rates
+        t = get_balanced_tree
+        b = assign_branch_lengths_from_tips
 
-    # test
-#    init_model(TEST_DIR, subsample_beta)
-#    for i in range(1, 20):
-#        run_single_tree(TEST_DIR, simulate_random_rates, get_balanced_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_tips, \
-#                        subsampling_function=subsample_beta)
+    if run_type == "TEST": # to be modified as appropriate for testing
+        d = TEST_DIR
+        s = simulate_random_rates
+        t = get_balanced_tree
+        b = assign_branch_lengths_from_tips
 
-### using beta subsampling
+    # subsampling_function -- change as appropriate
+    m = subsample_beta
 
-    # A    
-    init_model(equal_rates_dir, subsampling_function=subsample_beta)
-    for i in range(1, n_random_trees+1):
-       run_single_tree(equal_rates_dir, simulate_equal_rates, get_random_tree, i, subsampling_function=subsample_beta)
-
-#    # B
-#    init_model(random_rates_dir, subsampling_function=subsample_beta)
-#    for i in range(1, n_random_trees+1):
-#        run_single_tree(random_rates_dir, simulate_random_rates, get_random_tree, i, subsampling_function=subsample_beta)
-
-    # C
-#    init_model(pectinate_random_dir, subsampling_function=subsample_beta)
-#    for i in range(1, n_random_trees+1):
-#        run_single_tree(pectinate_random_dir, simulate_random_rates, get_pectinate_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_root, subsampling_function=subsample_beta)
-
-    # D
-#    init_model(balanced_random_dir, subsampling_function=subsample_beta)
-#    for i in range(3, n_random_trees+1):
-#        run_single_tree(balanced_random_dir, simulate_random_rates, get_balanced_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_root, subsampling_function=subsample_beta)
-
-    # E
-#    init_model(balanced_random_short_tips_dir, subsampling_function=subsample_beta)
-#    for i in range(1, n_random_trees+1):
-#        run_single_tree(balanced_random_short_tips_dir, simulate_random_rates, get_balanced_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_tips, subsampling_function=subsample_beta)
-
-    # test
-#    init_model(TEST_DIR, subsampling_function=subsample_beta)
-#    for i in range(1, 20):
-#        run_single_tree(TEST_DIR, simulate_random_rates, get_balanced_tree, i, \
-#                        branch_lengths_function=assign_branch_lengths_from_tips, \
-#                        subsampling_function=subsample_beta)
+    if initialize:
+        init_model(d, m)
+    for i in range(start_tree_id, n_random_trees+1):
+        run_single_tree(d, s, t, i, branch_lengths_function=b, subsampling_function=m)
