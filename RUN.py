@@ -17,8 +17,8 @@ score_file_column_labels = ["j_freq","j_ica","b_freq","b_ica","length","depth","
 
 n_random_trees = 5 # currently 5
 n_tips_per_tree = 1000 # currently 1000
-n_reps_taxon_jackknife = "200" # "200"
-n_reps_bootstrap = "100" # "100"
+n_reps_taxon_jackknife = '200' # '200'
+n_reps_bootstrap = '100' # '100'
 
 # simple simulation parameters
 birth_rate = 1.0
@@ -378,6 +378,18 @@ def subsample_beta(path_to_target_alignment, path_to_target_partfile):
     cmd += ' partfile=' + path_to_target_partfile if path_to_target_partfile is not None else ''
     subprocess.call(cmd, shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
+
+def subsample_uniform(path_to_target_alignment, path_to_target_partfile):
+    """uniform"""
+    args = ['subsample_alignment_uniform.py',
+            '-a', path_to_target_alignment,
+            '-p', '0.5'] # sampling proportion
+
+    if path_to_target_partfile is not None:
+        args += ['-q', path_to_target_partfile]
+
+    subprocess.call(' '.join(args), shell='True')
+    return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled_uniform.phy'
 
 def run_single_tree(base_dir, simulation_function, tree_function, tree_number, branch_lengths_function=None, subsampling_function=None):
 
@@ -758,9 +770,9 @@ if __name__ == "__main__":
 
     parser.add_argument("-r", "--run-type", nargs=1, required=True, help="The type of run. These are indicted by letters A-E. See script for more info.")
 
-    parser.add_argument("-i", "--initialize-run", action="store_true", help="If set, an attempt will be made to initialize the run folder.")
-
     parser.add_argument("-d", "--start-tree-id", nargs=1, type=int, required=True, help="The number of the tree to start with. Used when resuming partially completed runs.")
+
+    parser.add_argument("-i", "--initialize-run", action="store_true", help="If set, an attempt will be made to initialize the run folder.")
 
     args = parser.parse_args()
 
@@ -816,7 +828,7 @@ if __name__ == "__main__":
         b = assign_branch_lengths_from_tips
 
     # subsampling_function -- change as appropriate
-    m = subsample_beta
+    m = subsample_uniform
 
     if initialize:
         init_model(d, m)
