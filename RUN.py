@@ -4,7 +4,8 @@ import argparse, newick3, phylo3, math, os, random, shutil, subprocess, sys, tim
 import numpy as np
 from dendropy import treesim
 
-results_dir = os.path.expanduser("~/taxonjackknife/data_products")
+results_dir = os.path.expanduser("~/taxonjackknife/data_products") # for bigmems
+#results_dir = os.path.expanduser("~/Dropbox/Projects_current/Jackknife_test/data_products") # for mac laptop
 
 equal_rates_dir = results_dir + "/equal_rates_model"
 random_rates_dir = results_dir + "/random_rates_model"
@@ -373,10 +374,14 @@ def read_phylip(infile):
 
 def subsample_beta(path_to_target_alignment, path_to_target_partfile):
     """beta"""
-    cmd = 'subsample_alignment_beta.py '
-    cmd += path_to_target_alignment 
-    cmd += ' partfile=' + path_to_target_partfile if path_to_target_partfile is not None else ''
-    subprocess.call(cmd, shell='True')
+    args = ['subsample_alignment_beta.py',
+            '-a', path_to_target_alignment,
+            '-p', path_to_target_partfile if path_to_target_partfile is not None else '']
+    
+    print(' '.join(args))
+    exit()
+    
+    subprocess.call(' '.join(args), shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
 
 def subsample_uniform(path_to_target_alignment, path_to_target_partfile):
@@ -828,7 +833,7 @@ if __name__ == "__main__":
         b = assign_branch_lengths_from_tips
 
     # subsampling_function -- change as appropriate
-    m = subsample_uniform
+    m = subsample_beta
 
     if initialize:
         init_model(d, m)
