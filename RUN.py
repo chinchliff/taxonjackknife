@@ -378,9 +378,6 @@ def subsample_beta(path_to_target_alignment, path_to_target_partfile):
             '-a', path_to_target_alignment,
             '-p', path_to_target_partfile if path_to_target_partfile is not None else '']
     
-    print(' '.join(args))
-    exit()
-    
     subprocess.call(' '.join(args), shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
 
