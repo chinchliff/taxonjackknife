@@ -16,10 +16,10 @@ TEST_DIR = results_dir + "/TEST"
 
 score_file_column_labels = ["j_freq","j_ica","b_freq","b_ica","length","depth","in_true_tree"]
 
-n_random_trees = 5 # currently 5
-n_tips_per_tree = 1000 # currently 1000
-n_reps_taxon_jackknife = '200' # '200'
-n_reps_bootstrap = '100' # '100'
+n_random_trees = 10 # currently 5
+n_tips_per_tree = 10 # currently 1000
+n_reps_taxon_jackknife = '10' # '200'
+n_reps_bootstrap = '10' # '100'
 
 # simple simulation parameters
 birth_rate = 1.0
