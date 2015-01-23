@@ -274,6 +274,7 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
     while True:
         
         models = []
+        model_rates = []
         statefreqs = []
         for j in range(n_parts):
             m = []
@@ -290,6 +291,7 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
             scalar = random.randint(2,20)/float(10)
             m = [c*scalar for c in m]
             models.append(" ".join([str(v) for v in m]))
+            model_rates.append(sum(m))
             
             for k in range(3):
                 # now generate a state frequency
@@ -344,7 +346,7 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
             partitions_file.write("DNA, p{j} = {begin}-{end}\n".format(j=j, begin=j*part_length+1, end=j*part_length+part_length))
             
     # return the tree file, alignment file, and partitions file names
-    return (tree_label + ".tre", alignment_file_name, partitions_file_name)
+    return (tree_label + ".tre", alignment_file_name, partitions_file_name, model_rates)
 
 def read_phylip(infile):
     aln = {}
@@ -372,7 +374,11 @@ def read_phylip(infile):
 
     return aln
 
-def subsample_beta(path_to_target_alignment, path_to_target_partfile):
+def subsample_beta(path_to_target_alignment, path_to_target_partfile, model_rates):
+    
+    print model_rates
+    exit()
+    
     """beta"""
     args = ['subsample_alignment_beta.py',
             '-a', path_to_target_alignment,
@@ -381,7 +387,7 @@ def subsample_beta(path_to_target_alignment, path_to_target_partfile):
     subprocess.call(' '.join(args), shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
 
-def subsample_uniform(path_to_target_alignment, path_to_target_partfile):
+def subsample_uniform(path_to_target_alignment, path_to_target_partfile, model_rates):
     """uniform"""
     args = ['subsample_alignment_uniform.py',
             '-a', path_to_target_alignment,
@@ -421,10 +427,11 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
     tree_file_name = working_tree_dir + "/" + simulation_results[0]
     alignment_file_name = working_tree_dir + "/" + simulation_results[1]
     partitions_file_name = working_tree_dir + "/" + simulation_results[2] if len(simulation_results) > 2 else None
+    model_rates = simulation_results[3] if len(simulation_results) > 3 else None
     
     # subsample the alignment if necessary
     if subsampling_function is not None:
-        alignment_file_name = subsampling_function(alignment_file_name, partitions_file_name)
+        alignment_file_name = subsampling_function(alignment_file_name, partitions_file_name, model_rates)
 
     # calculate support for the original tree based on the data, support values will be stored in node_scores.csv
     subsample_args = ["python3.4", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
