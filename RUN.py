@@ -16,10 +16,10 @@ TEST_DIR = results_dir + "/TEST"
 
 score_file_column_labels = ["j_freq","j_ica","b_freq","b_ica","length","depth","in_true_tree"]
 
-n_random_trees = 10 # currently 5
-n_tips_per_tree = 10 # currently 1000
-n_reps_taxon_jackknife = '10' # '200'
-n_reps_bootstrap = '10' # '100'
+n_random_trees = 5 # currently 5
+n_tips_per_tree = 1000 # currently 1000
+n_reps_taxon_jackknife = '200' # '200'
+n_reps_bootstrap = '100' # '100'
 
 # simple simulation parameters
 birth_rate = 1.0
@@ -181,14 +181,13 @@ def get_random_tree(branch_lengths_function):
 # for the equal rates model (simplest case)
 def simulate_equal_rates(tree_label, tree_function, branch_lengths_function):
 
-    transition_rate = birth_rate / 10
-    gtr_equal = " ".join([str(transition_rate),]*6)
+#    transition_rate = birth_rate / 10
+#    gtr_equal = " ".join([str(transition_rate),]*6)
         
     indelible_control_file_text = """\
 [TYPE] NUCLEOTIDE 2	//  nucleotide simulation using algorithm from method 2.
-[MODEL]    gtr_equal
-  [submodel]  GTR {model}
-  [statefreq] 0.25 0.25 0.25 0.25 //  pi_T=0.25, pi_C=0.25, pi_A=0.25, pi_G=0.25
+[MODEL]    equal_rates
+  [submodel]  JC
 [TREE] tree {tree}
 [PARTITIONS] part   [tree gtr_equal {aln_length}] // alignment length of {aln_length}
 [EVOLVE]
@@ -262,8 +261,8 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
 """
 
     # simulation parameters
-    min_transition_rate = birth_rate / 100
-    max_transition_rate = birth_rate / 10
+    min_transition_rate = 0.5 #birth_rate / 100
+    max_transition_rate = 1.5 #birth_rate / 10
     min_state_freq = 0.1
     max_state_freq = 0.3
     part_length = 2000
@@ -274,24 +273,25 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
     while True:
         
         models = []
-        model_rates = []
+        model_rates = {}
         statefreqs = []
         for j in range(n_parts):
             m = []
             t = []
-            for k in range(6):
+            for k in range(5): #range(6):
             
                 # first generate a transition rate
                 g = -1
-                while g < min_transition_rate or g > max_transition_rate:
-                    g = random.random()
-                m.append(g)
+#                while g < min_transition_rate or g > max_transition_rate:
+                g = random.random() + 0.5
+                m.append(g)                
 
             # perturb the model more
-            scalar = random.randint(2,20)/float(10)
-            m = [c*scalar for c in m]
+#            scalar = random.randint(2,20)/float(10)
+#            m = [c*scalar for c in m]
+            random.shuffle(m)
             models.append(" ".join([str(v) for v in m]))
-            model_rates.append(sum(m))
+            model_rates['p'+str(j)] = sum(m)
             
             for k in range(3):
                 # now generate a state frequency
@@ -302,6 +302,7 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
 
             # calculate the final value
             t.append(str(1 - sum(t)))
+            random.shuffle(t)
             statefreqs.append(" ".join([str(v) for v in t]))
 
         # randomly generate a tree
@@ -375,14 +376,12 @@ def read_phylip(infile):
     return aln
 
 def subsample_beta(path_to_target_alignment, path_to_target_partfile, model_rates):
-    
-    print model_rates
-    exit()
-    
     """beta"""
+    order = sorted(model_rates.keys(), cmp=lambda p, q: cmp(model_rates[p], model_rates[q]), reverse=True)
     args = ['subsample_alignment_beta.py',
             '-a', path_to_target_alignment,
-            '-p', path_to_target_partfile if path_to_target_partfile is not None else '']
+            '-p', path_to_target_partfile if path_to_target_partfile is not None else '',
+            '-o', ','.join(order)]
     
     subprocess.call(' '.join(args), shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
