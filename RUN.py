@@ -1,11 +1,10 @@
-#!/usr/bin/env python2.6
+#!/usr/bin/env python3
 
 import argparse, newick3, phylo3, math, os, random, shutil, subprocess, sys, time
-import numpy as np
-from dendropy import treesim
+from dendropy import simulate
+from io import StringIO
 
-results_dir = os.path.expanduser("~/taxonjackknife/data_products") # for bigmems
-#results_dir = os.path.expanduser("~/Dropbox/Projects_current/Jackknife_test/data_products") # for mac laptop
+results_dir = os.path.expanduser("~/Dropbox/Projects_current/Jackknife_test/data_products") # for mac laptop
 
 equal_rates_dir = results_dir + "/equal_rates_model"
 random_rates_dir = results_dir + "/random_rates_model"
@@ -17,13 +16,15 @@ TEST_DIR = results_dir + "/TEST"
 score_file_column_labels = ["j_freq","j_ica","b_freq","b_ica","length","depth","in_true_tree"]
 
 n_random_trees = 5 # currently 5
-n_tips_per_tree = 1000 # currently 1000
+n_tips_per_tree = 500 # currently 1000
 n_reps_taxon_jackknife = '200' # '200'
 n_reps_bootstrap = '100' # '100'
+reduction_factor = '1'
 
 # simple simulation parameters
-birth_rate = 1.0
-death_rate = birth_rate / 10
+birth_rate = 0.5
+death_rate = birth_rate / 30
+maximal_scaled_brlen = 1
 
 expected_tree_depth = math.log(n_tips_per_tree) / (birth_rate - death_rate)
 
@@ -77,106 +78,111 @@ def get_pectinate_tree(branch_lengths_function):
         n = c
         if i == n_tips_per_tree - 2:
             c.istip = True
-            c.label = "T"+str(i+2)
+            c.label = "T" + str(i + 2)
     
     mean_br_length = expected_tree_depth / (n_tips_per_tree - 1)
     return branch_lengths_function(tree, mean_br_length)
 
-def assign_branch_lengths_from_tips(tree, mean_br_length):
-
-    # NOTE: assumes a bifurcating tree
-
-    for n in tree.iternodes(order=phylo3.POSTORDER):
-
-        if n.istip:
-        
-            # check if this is a cherry
-            p = n.parent
-            for s in p.children:
-                if s != n:
-                    if s.istip and hasattr(s, "height"):
-                        # a cherry, other tip has an assigned length, copy it
-                        n.length = s.length
-                    else: # not a cherry or other tip has no length, assign a length
-                        n.length = np.random.exponential(mean_br_length, 1)[0]
-            n.height = 0 # tips are always height 0
-
-        else: # not a tip
-        
-            # collect lengths and heights of children
-            l = (n.children[0].length, n.children[1].length)
-            h = (n.children[0].height, n.children[1].height)
-
-            # normalize the lengths of this node's children so the
-            # cumulative distance to the tips is equal on both sides
-            if h[0] + l[0] > h[1] + l[1]:
-                m = 0
-                n.children[1].length += h[0] + l[0] - (h[1] + l[1])
-            else:
-                m = 1
-                n.children[0].length += h[1] + l[1] - (h[0] + l[0])
-                
-            # assign length and height to this node
-            n.length = np.random.exponential(mean_br_length/2, 1)[0]
-            n.height = n.children[m].height + n.children[m].length
-
-    return newick3.to_string(tree)    
-
-def assign_branch_lengths_from_root(tree, mean_br_length):
-
-    # get random draws, one more than we need for just the internal branches
-    l = [x for x in np.random.exponential(mean_br_length, n_tips_per_tree)]
-
-    # assign the internal branch lengths    
-    tips_seen = 0
-    for i, n in enumerate(tree.iternodes()):
-        if not n.istip:
-            n.length = l[i - tips_seen]
-        else:
-            tips_seen += 1
-
-    # find the longest root-tip path (i.e. shallowest cherry)
-    youngest_cherry = None
-    tree_depth = 0
-    for t in tree.leaves():
-        p = t
-        pathlen = 0
-        while p.parent != None:
-            pathlen += p.length
-            p = p.parent
-
-        if pathlen > tree_depth:
-            tree_depth = pathlen
-            youngest_cherry = t.parent
-
-    # use the last branch length for the children of the shallowest node
-    for m in youngest_cherry.children:
-        m.length = (l[-1] / 10)
-        
-    tree_depth += youngest_cherry.children[0].length
-    
-    # assign tip lengths    
-    for n in tree.iternodes():
-
-        # get the current node depth
-        p = n
-        d = p.length
-        while p.parent != None:
-            p = p.parent
-            d += p.length
-        
-        for c in n.children:
-            if c.istip:
-                c.length = tree_depth - d
-        
-    return newick3.to_string(tree)
+#def assign_branch_lengths_from_tips(tree, mean_br_length):
+#
+#    # NOTE: assumes a bifurcating tree
+#
+#    for n in tree.iternodes(order=phylo3.POSTORDER):
+#
+#        if n.istip:
+#        
+#            # check if this is a cherry
+#            p = n.parent
+#            for s in p.children:
+#                if s != n:
+#                    if s.istip and hasattr(s, "height"):
+#                        # a cherry, other tip has an assigned length, copy it
+#                        n.length = s.length
+#                    else: # not a cherry or other tip has no length, assign a length
+#                        n.length = np.random.exponential(mean_br_length, 1)[0]
+#            n.height = 0 # tips are always height 0
+#
+#        else: # not a tip
+#        
+#            # collect lengths and heights of children
+#            l = (n.children[0].length, n.children[1].length)
+#            h = (n.children[0].height, n.children[1].height)
+#
+#            # normalize the lengths of this node's children so the
+#            # cumulative distance to the tips is equal on both sides
+#            if h[0] + l[0] > h[1] + l[1]:
+#                m = 0
+#                n.children[1].length += h[0] + l[0] - (h[1] + l[1])
+#            else:
+#                m = 1
+#                n.children[0].length += h[1] + l[1] - (h[0] + l[0])
+#                
+#            # assign length and height to this node
+#            n.length = np.random.exponential(mean_br_length/2, 1)[0]
+#            n.height = n.children[m].height + n.children[m].length
+#
+#    return "("+newick3.to_string(tree)+");"  
+#
+#def assign_branch_lengths_from_root(tree, mean_br_length):
+#
+#    # get random draws, one more than we need for just the internal branches
+#    l = [x for x in np.random.exponential(mean_br_length, n_tips_per_tree)]
+#
+#    # assign the internal branch lengths    
+#    tips_seen = 0
+#    for i, n in enumerate(tree.iternodes()):
+#        if not n.istip:
+#            n.length = l[i - tips_seen]
+#        else:
+#            tips_seen += 1
+#
+#    # find the longest root-tip path (i.e. shallowest cherry)
+#    youngest_cherry = None
+#    tree_depth = 0
+#    for t in tree.leaves():
+#        p = t
+#        pathlen = 0
+#        while p.parent != None:
+#            pathlen += p.length
+#            p = p.parent
+#
+#        if pathlen > tree_depth:
+#            tree_depth = pathlen
+#            youngest_cherry = t.parent
+#
+#    # use the last branch length for the children of the shallowest node
+#    for m in youngest_cherry.children:
+#        m.length = (l[-1] / 10)
+#        
+#    tree_depth += youngest_cherry.children[0].length
+#    
+#    # assign tip lengths    
+#    for n in tree.iternodes():
+#
+#        # get the current node depth
+#        p = n
+#        d = p.length
+#        while p.parent != None:
+#            p = p.parent
+#            d += p.length
+#        
+#        for c in n.children:
+#            if c.istip:
+#                c.length = tree_depth - d
+#        
+#    return "("+newick3.to_string(tree)+");"
 
 def get_random_tree(branch_lengths_function):
 
     # note: the branch lengths function is unused in this tree generation method
 
-    simt = treesim.birth_death(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
-    return simt.as_newick_string()
+#    simt = treesim.birth_death(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
+#    return simt.as_newick_string()
+
+    simt = simulate.birth_death_tree(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
+    x = simt.as_string('newick', suppress_rooting=True).strip()
+#    print(x)
+    return x
 
 # for the equal rates model (simplest case)
 def simulate_equal_rates(tree_label, tree_function, branch_lengths_function):
@@ -203,16 +209,16 @@ def simulate_equal_rates(tree_label, tree_function, branch_lengths_function):
         # save the tree topology to a file
         with open(tree_label + ".tre", "w") as tree_file:
             tree_file.write(tree_string)
-            tree_file.write(";")
+#            tree_file.write(";")
 
         # write a control file for indelible
         with open("control.txt","w") as control_file:
-            control_file.write(indelible_control_file_text.format(tree="("+tree_string+");", model=gtr_equal, aln_length=10000, tree_label=tree_label))
+            control_file.write(indelible_control_file_text.format(tree='('+tree_string.strip(';')+');', model=gtr_equal, aln_length=10000, tree_label=tree_label))
 
         # simulate data on the tree
         p = subprocess.Popen("indelible", stdout=subprocess.PIPE)
         r = p.communicate()
-        if r[0].find("ERROR in [TREE] block tree in command [user]") < 0:
+        if not "ERROR in [TREE] block" in str(r[0]):
             # there was no error (substring index == -1) so move on 
             break
         
@@ -245,83 +251,155 @@ def simulate_random_rates(tree_label, tree_function, branch_lengths_function):
   [submodel]  GTR {models[4]}
   [statefreq] {statefreqs[4]}
 
-[TREE] tree {tree}
-[PARTITIONS] part1   [tree gtr1 {part_length}]
-[PARTITIONS] part2   [tree gtr2 {part_length}]
-[PARTITIONS] part3   [tree gtr3 {part_length}]
-[PARTITIONS] part4   [tree gtr4 {part_length}]
-[PARTITIONS] part5   [tree gtr5 {part_length}]
+[MODEL]    gtr6
+  [submodel]  GTR {models[5]}
+  [statefreq] {statefreqs[5]}
+
+[MODEL]    gtr7
+  [submodel]  GTR {models[6]}
+  [statefreq] {statefreqs[6]}
+
+[MODEL]    gtr8
+  [submodel]  GTR {models[7]}
+  [statefreq] {statefreqs[7]}
+
+[MODEL]    gtr9
+  [submodel]  GTR {models[8]}
+  [statefreq] {statefreqs[8]}
+
+[MODEL]    gtr10
+  [submodel]  GTR {models[9]}
+  [statefreq] {statefreqs[9]}
+
+[TREE] tree1 {tree}
+[treelength] {tree_lengths[0]}
+[TREE] tree2 {tree}
+[treelength] {tree_lengths[1]}
+[TREE] tree3 {tree}
+[treelength] {tree_lengths[2]}
+[TREE] tree4 {tree}
+[treelength] {tree_lengths[3]}
+[TREE] tree5 {tree}
+[treelength] {tree_lengths[4]}
+[TREE] tree6 {tree}
+[treelength] {tree_lengths[5]}
+[TREE] tree7 {tree}
+[treelength] {tree_lengths[6]}
+[TREE] tree8 {tree}
+[treelength] {tree_lengths[7]}
+[TREE] tree9 {tree}
+[treelength] {tree_lengths[8]}
+[TREE] tree10 {tree}
+[treelength] {tree_lengths[9]}
+
+[PARTITIONS] part1   [tree1 gtr1 {part_length}]
+[PARTITIONS] part2   [tree2 gtr2 {part_length}]
+[PARTITIONS] part3   [tree3 gtr3 {part_length}]
+[PARTITIONS] part4   [tree4 gtr4 {part_length}]
+[PARTITIONS] part5   [tree5 gtr5 {part_length}]
+[PARTITIONS] part6   [tree6 gtr6 {part_length}]
+[PARTITIONS] part7   [tree7 gtr7 {part_length}]
+[PARTITIONS] part8   [tree8 gtr8 {part_length}]
+[PARTITIONS] part9   [tree9 gtr9 {part_length}]
+[PARTITIONS] part10   [tree10 gtr10 {part_length}]
 
 [EVOLVE]
-  part1 1 {tree_label}_part_1 //  1 replicate generated from partition 'part1' in file '{tree_label}_part_1.fas'
-  part2 1 {tree_label}_part_2 //  1 replicate generated from partition 'part2' in file '{tree_label}_part_2.fas'
-  part3 1 {tree_label}_part_3 //  1 replicate generated from partition 'part3' in file '{tree_label}_part_3.fas'
-  part4 1 {tree_label}_part_4 //  1 replicate generated from partition 'part4' in file '{tree_label}_part_4.fas'
-  part5 1 {tree_label}_part_5 //  1 replicate generated from partition 'part5' in file '{tree_label}_part_5.fas'
+  part1 1 {tree_label}_part_1   //  1 replicate generated from partition 'part1' in file '{tree_label}_part_1.fas'
+  part2 1 {tree_label}_part_2   //  1 replicate generated from partition 'part2' in file '{tree_label}_part_2.fas'
+  part3 1 {tree_label}_part_3   //  1 replicate generated from partition 'part3' in file '{tree_label}_part_3.fas'
+  part4 1 {tree_label}_part_4   //  1 replicate generated from partition 'part4' in file '{tree_label}_part_4.fas'
+  part5 1 {tree_label}_part_5   //  1 replicate generated from partition 'part5' in file '{tree_label}_part_5.fas'
+  part6 1 {tree_label}_part_6   //  1 replicate generated from partition 'part6' in file '{tree_label}_part_6.fas'
+  part7 1 {tree_label}_part_7   //  1 replicate generated from partition 'part7' in file '{tree_label}_part_7.fas'
+  part8 1 {tree_label}_part_8   //  1 replicate generated from partition 'part8' in file '{tree_label}_part_8.fas'
+  part9 1 {tree_label}_part_9   //  1 replicate generated from partition 'part9' in file '{tree_label}_part_9.fas'
+  part10 1 {tree_label}_part_10 //  1 replicate generated from partition 'part10' in file '{tree_label}_part_10.fas'
 """
 
     # simulation parameters
-    min_transition_rate = 0.5 #birth_rate / 100
-    max_transition_rate = 1.5 #birth_rate / 10
-    min_state_freq = 0.1
-    max_state_freq = 0.3
-    part_length = 2000
-    n_parts = 5
+#    min_transition_rate = 0.5 #birth_rate / 100
+#    max_transition_rate = 1.5 #birth_rate / 10
+#    min_state_freq = 0.1
+#    max_state_freq = 0.3
+    part_length = 500
+    n_parts = 10
     aln_length = part_length * n_parts
 
     # repeat until we get an acceptable tree
     while True:
         
+        # randomly generate a tree, and calculate a scalar based on its branch lengths/depth
+        tree_string = tree_function(branch_lengths_function)
+        t = newick3.parse(StringIO(tree_string))
+        tree_depth = t.depth
+        brlens = t.branch_lengths()
+        x = len(brlens)
+        median_brlen = brlens[ math.floor(x / 2) + (x % 2)]
+#        scaled_tree_length = t.length * (maximal_scaled_brlen / median_brlen)
+        
         models = []
+        tree_lengths = []
         model_rates = {}
         statefreqs = []
         for j in range(n_parts):
-            m = []
-            t = []
-            for k in range(5): #range(6):
-            
-                # first generate a transition rate
-                g = -1
-#                while g < min_transition_rate or g > max_transition_rate:
-                g = random.random() + 0.5
-                m.append(g)                
 
-            # perturb the model more
+#            m = []
+#            t = []
+#            for k in range(5): #range(6):
+#           
+#                # first generate a transition rate
+#                g = -1
+##                while g < min_transition_rate or g > max_transition_rate:
+#                g = random.random() + 0.5
+#                m.append(g)                
+#
+#            # perturb the model more
 #            scalar = random.randint(2,20)/float(10)
 #            m = [c*scalar for c in m]
-            random.shuffle(m)
-            models.append(" ".join([str(v) for v in m]))
-            model_rates['p'+str(j)] = sum(m)
-            
-            for k in range(3):
-                # now generate a state frequency
-                g = -1
-                while g < min_state_freq or g > max_state_freq:
-                    g = random.random()
-                t.append(g)
+#            random.shuffle(m)
+#            models.append(" ".join([str(v) for v in m]))
+#            model_rates['p'+str(j)] = sum(m)
+#            
+#            for k in range(3):
+#                # now generate a state frequency
+#                g = -1
+#                while g < min_state_freq or g > max_state_freq:
+#                    g = random.random()
+#                t.append(g)
+#
+#            # calculate the final value
+#            t.append(str(1 - sum(t)))
+#            random.shuffle(t)
+#            statefreqs.append(" ".join([str(v) for v in t]))
 
-            # calculate the final value
-            t.append(str(1 - sum(t)))
-            random.shuffle(t)
-            statefreqs.append(" ".join([str(v) for v in t]))
+            slowdown_scalar = 1
+            scaled_length = t.subtree_length / ((j+1) * slowdown_scalar)
+            tree_lengths.append(scaled_length)
 
-        # randomly generate a tree
-        tree_string = tree_function(branch_lengths_function)
+            x = [0.3,0.4,0.5,0.7,0.9,1]
+            random.shuffle(x)
+            models.append(" ".join([str(v) for v in x]))
+            model_rates['p'+str(j)] = sum(x) * scaled_length
+            y =  [0.15,0.2,0.3,0.35]
+            random.shuffle(y)
+            statefreqs.append(" ".join([str(v) for v in y]))
 
         # save the tree topology to a file
         with open(tree_label + ".tre", "w") as tree_file:
             tree_file.write(tree_string)
-            tree_file.write(";")
+#            tree_file.write(";")
 
         # write a control file for indelible
         with open("control.txt","w") as control_file:
-            control_file.write(indelible_control_file_text.format(tree="("+tree_string+");", models=models, \
-                    statefreqs=statefreqs, part_length=aln_length/5, tree_label=tree_label))
+            control_file.write(indelible_control_file_text.format(tree='('+tree_string.strip(';')+');', models=models, \
+                    statefreqs=statefreqs, part_length=part_length, tree_label=tree_label, tree_lengths=tree_lengths))
 
         # simulate data on the tree
         p = subprocess.Popen("indelible", stdout=subprocess.PIPE)
         r = p.communicate()
-        if r[0].find("ERROR in [TREE] block tree in command [user]") < 0:
+#        print(r)
+#        exit()
+        if not "ERROR in [TREE] block" in str(r[0]):
             # there was no error (substring index == -1) so move on 
             break
     
@@ -375,19 +453,32 @@ def read_phylip(infile):
 
     return aln
 
-def subsample_beta(path_to_target_alignment, path_to_target_partfile, model_rates):
-    """beta"""
-    order = sorted(model_rates.keys(), cmp=lambda p, q: cmp(model_rates[p], model_rates[q]), reverse=True)
-    args = ['subsample_alignment_beta.py',
+def subsample_phylogenetic(path_to_target_alignment, path_to_target_partfile, model_rates, path_to_tree_file):
+    """phylogenetic"""
+
+    path_to_rates_file = path_to_target_alignment.split('.', 1)[0] + '.rates'
+    with open(path_to_rates_file, 'w') as rates_file:
+        for name, rate in model_rates.items():
+            rates_file.write(name + ' = ' + str(rate) + '\n')
+    
+    args = ['subsample_alignment_phylogenetic.py',
             '-a', path_to_target_alignment,
-            '-p', path_to_target_partfile if path_to_target_partfile is not None else '',
-            '-o', ','.join(order)]
+            '-q', path_to_target_partfile,
+            '-r', path_to_rates_file,
+            '-t', path_to_tree_file,
+            '-f', reduction_factor]
+    
+#    print ' '.join(args)
+#    exit()
     
     subprocess.call(' '.join(args), shell='True')
     return path_to_target_alignment.rsplit('.',1)[0]+'.subsampled.phy'
 
-def subsample_uniform(path_to_target_alignment, path_to_target_partfile, model_rates):
+def subsample_uniform(path_to_target_alignment, path_to_target_partfile, model_rates, path_to_tree_file):
     """uniform"""
+    
+    # note: path_to_tree_file is unused here
+    
     args = ['subsample_alignment_uniform.py',
             '-a', path_to_target_alignment,
             '-p', '0.5'] # sampling proportion
@@ -430,10 +521,10 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
     
     # subsample the alignment if necessary
     if subsampling_function is not None:
-        alignment_file_name = subsampling_function(alignment_file_name, partitions_file_name, model_rates)
+        alignment_file_name = subsampling_function(alignment_file_name, partitions_file_name, model_rates, tree_file_name)
 
     # calculate support for the original tree based on the data, support values will be stored in node_scores.csv
-    subsample_args = ["python3.4", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
+    subsample_args = ["python3", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
         "-t", tree_file_name,
         "-n", alignment_file_name,
         "-#", n_reps_taxon_jackknife,
@@ -444,6 +535,9 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
 
     if partitions_file_name is not None:
         subsample_args += ["-q", partitions_file_name]
+
+#    print ' '.join(subsample_args)
+#    exit()
 
     start = time.time()
     subprocess.call(subsample_args)
@@ -509,7 +603,8 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
 
     # parse pxbp results
     bootstrap_biparts = {}
-    for line in results.split("\n"):
+    for line in results.decode().split('\n'):
+#        print(line)
         parts = [p.strip() for p in line.split("\t")]
         if len(parts) < 2:
             continue
@@ -523,6 +618,8 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
             freq = parts[2]
             ica = parts[4]
         bootstrap_biparts[ingroup_labels] = (freq, ica)
+#    print(bootstrap_biparts)
+#    exit()
 
     # TODO: call mrbayes to generate a bayesian posterior distribution
 
@@ -698,7 +795,7 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
             topo_file.write(newick)
 
         # calculate support for the bootstrap-inferred FALSE branch, support values will be stored in node_scores.csv
-        subsample_args = ["python3.4", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
+        subsample_args = ["python3", os.path.expanduser("~/scripts/subsample_edge_quartets.py"),
             "-t", bad_branch_label+".tre",
             "-n", alignment_file_name,
             "-#", n_reps_taxon_jackknife,
@@ -715,6 +812,8 @@ def run_single_tree(base_dir, simulation_function, tree_function, tree_number, b
 
         try:
             ingroup_labels = tuple(sorted(tip_label_sets[0] + tip_label_sets[1]))
+#            print(ingroup_labels)
+#            print(bootstrap_biparts)
             node_scores[bad_branch_label]["b_freq"] = bootstrap_biparts[ingroup_labels][0]
         except KeyError:
             ingroup_labels = tuple(sorted(tip_label_sets[2] + tip_label_sets[3]))
@@ -743,7 +842,7 @@ def init_model(base_dir, subsampling_function=None):
     if subsampling_function is not None:
         base_dir = base_dir + "_SUBSAMPLED_" + subsampling_function.__doc__
 
-    x = raw_input("Are you sure you want to initialize '" + base_dir + "'? y/n: ")
+    x = input("Are you sure you want to initialize '" + base_dir + "'? y/n: ")
     if x[0].lower() != "y":
         exit(0)
 
@@ -832,11 +931,11 @@ if __name__ == "__main__":
     if run_type == "TEST": # to be modified as appropriate for testing
         d = TEST_DIR
         s = simulate_random_rates
-        t = get_balanced_tree
-        b = assign_branch_lengths_from_tips
+        t = get_random_tree
+        b = None
 
     # subsampling_function -- change as appropriate
-    m = subsample_beta
+    m = subsample_phylogenetic
 
     if initialize:
         init_model(d, m)

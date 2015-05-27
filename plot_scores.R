@@ -185,12 +185,12 @@ nc <- length(col.title)
 nr <- length(row.title)
 
 ## Process data
-input.files <- c(
-	"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_100_trees_of_50_tips/all_scores/ALL.scores.csv"
-	,"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_50_trees_of_100_tips/all_scores/ALL.scores.csv"
-	,"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_10_trees_of_500_tips/all_scores/ALL.scores.csv"
-	,"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_5_trees_of_1000_tips/all_scores/ALL.scores.csv"
-)
+#input.files <- c(#
+#	"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_100_trees_of_50_tips/all_scores/ALL.scores.csv"
+#	,"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_50_trees_of_100_tips/all_scores/ALL.scores.csv"
+#	,"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_10_trees_of_500_tips/all_scores/ALL.scores.csv"
+#	,"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_model_5_trees_of_1000_tips/all_scores/ALL.scores.csv"
+#)
 
 #input.files <- c(
 #	"~/Dropbox/Projects_current/Jackknife_test/data_products/balanced_random_short_tips_model_100_trees_of_50_tips/all_scores/ALL.scores.csv"
@@ -218,6 +218,11 @@ input.files <- c(
 #	,"~/Dropbox/Projects_current/Jackknife_test/data_products/random_rates_model_10_trees_of_500_tips/all_scores/ALL.scores.csv"
 #	,"~/Dropbox/Projects_current/Jackknife_test/data_products/random_rates_model_5_trees_of_1000_tips/all_scores/ALL.scores.csv"
 #)
+
+input.files <- c(
+	"~/Dropbox/Projects_current/Jackknife_test/data_products/TEST_5_trees_of_500_tips_SUBSAMPLED_phylogenetic/all_scores/ALL.scores.csv"
+#	,"~/Dropbox/Projects_current/Jackknife_test/data_products/TEST_5_trees_of_500_tips_SUBSAMPLED_phylogenetic/all_scores/ALL.scores.csv"
+)
 
 ### may want to organize these primarily by treeshape/dataset instead of size. so, all sizes of pectinate/random 100% together, etc.  
 
