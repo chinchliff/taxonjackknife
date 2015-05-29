@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse, newick3, phylo3, math, os, random, shutil, subprocess, sys, time
-from dendropy import simulate
+from dendropy import treesim
 from io import StringIO
 
 results_dir = os.path.expanduser("~/Dropbox/Projects_current/Jackknife_test/data_products") # for mac laptop
@@ -179,7 +179,7 @@ def get_random_tree(branch_lengths_function):
 #    simt = treesim.birth_death(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
 #    return simt.as_newick_string()
 
-    simt = simulate.birth_death_tree(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
+    simt = treesim.birth_death(birth_rate=birth_rate, death_rate=death_rate, ntax=n_tips_per_tree)
     x = simt.as_string('newick', suppress_rooting=True).strip()
 #    print(x)
     return x
